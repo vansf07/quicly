@@ -707,6 +707,32 @@ CIDMismatch:
     return 0;
 }
 
+static inline int resolve_address(int* fd, char* device, struct sockaddr *sa, socklen_t *salen, int family, int type,
+                                  int proto)
+{
+    struct ifreq ifr;
+    struct sockaddr_ll sll;
+    memset(&ifr, 0, sizeof(ifr));
+    memset(&sll, 0, sizeof(sll));
+
+
+    *fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    strncpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+
+    if(ioctl(*fd, SIOCGIFINDEX, &ifr) == -1) { 
+        printf(" ERR: ioctl failed for device: %s\n", device); 
+        return -1; }
+    sll.sll_family      = family;
+    sll.sll_pkttype     = type;
+    sll.sll_ifindex     = ifr.ifr_ifindex;
+    sll.sll_protocol    = proto;
+
+    memcpy(sa, sll.sll_addr, sll.sll_halen);
+    *salen = sll.sll_halen;
+
+    return 0;
+}
+
 static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
 {
     signal(SIGINT, on_signal);
