@@ -19,6 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+#include <linux/if_ether.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -30,7 +31,7 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <picotls.h>
+// #include <picotls.h>
 #if QUICLY_HAVE_FUSION
 #include "picotls/fusion.h"
 #endif
@@ -710,11 +711,11 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
 {
     signal(SIGINT, on_signal);
     signal(SIGHUP, on_signal);
-
-    if (bind(fd, sa, salen) != 0) {
-        perror("bind(2) failed");
-        return 1;
-    }
+    
+    // if (bind(fd, sa, salen) != 0) {
+    //     perror("bind(2) failed");
+    //     return 1;
+    // }
 
     while (1) {
         fd_set readfds;
@@ -757,7 +758,11 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 mess.msg_iov = &vec;
                 mess.msg_iovlen = 1;
                 ssize_t rret;
-                while ((rret = recvmsg(fd, &mess, 0)) == -1 && errno == EINTR)
+
+                unsigned char *buffer = (unsigned char *) malloc(65536); //to receive data
+                memset(buffer,0,65536);
+
+                while ((rret = recvfrom(fd, buffer, 65536, 0, sa, (socklen_t *)&salen)) == -1 && errno == EINTR)
                     ;
                 if (rret == -1)
                     break;
@@ -1069,7 +1074,7 @@ static void push_req(const char *path, int to_file)
 
 int main(int argc, char **argv)
 {
-    const char *cert_file = NULL, *raw_pubkey_file = NULL, *host, *port, *cid_key = NULL;
+    const char *cert_file = NULL, *raw_pubkey_file = NULL, *cid_key = NULL;
     struct sockaddr_storage sa;
     socklen_t salen;
     unsigned udpbufsize = 0;
@@ -1404,49 +1409,51 @@ int main(int argc, char **argv)
         fprintf(stderr, "missing host and port\n");
         exit(1);
     }
-    host = (--argc, *argv++);
-    port = (--argc, *argv++);
 
-    if (resolve_address((void *)&sa, &salen, host, port, AF_INET, SOCK_DGRAM, IPPROTO_UDP) != 0)
-        exit(1);
+    if (resolve_address(&fd, "wlp2s0",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
+        {
+            exit(1);
+        }
 
-    if ((fd = socket(sa.ss_family, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-        perror("socket(2) failed");
-        return 1;
-    }
+    
+
+    // if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) == -1){
+    //     perror("bind socket(2) failed");
+    //     return 1;
+    // }
     fcntl(fd, F_SETFL, O_NONBLOCK);
     {
         int on = 1;
-        if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) != 0) {
-            perror("setsockopt(SO_REUSEADDR) failed");
-            return 1;
-        }
+        // if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) != 0) {
+        //     perror("setsockopt(SO_REUSEADDR) failed");
+        //     return 1;
+        // }
     }
     if (udpbufsize != 0) {
         unsigned arg = udpbufsize;
-        if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &arg, sizeof(arg)) != 0) {
-            perror("setsockopt(SO_RCVBUF) failed");
-            return 1;
-        }
+        // if (setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &arg, sizeof(arg)) != 0) {
+        //     perror("setsockopt(SO_RCVBUF) failed");
+        //     return 1;
+        // }
         arg = udpbufsize;
-        if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &arg, sizeof(arg)) != 0) {
-            perror("setsockopt(SO_RCVBUF) failed");
-            return 1;
-        }
+        // if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &arg, sizeof(arg)) != 0) {
+        //     perror("setsockopt(SO_RCVBUF) failed");
+        //     return 1;
+        // }
     }
 #if defined(IP_DONTFRAG)
     {
         int on = 1;
-        if (setsockopt(fd, IPPROTO_IP, IP_DONTFRAG, &on, sizeof(on)) != 0)
-            perror("Warning: setsockopt(IP_DONTFRAG) failed");
+        // if (setsockopt(fd, IPPROTO_IP, IP_DONTFRAG, &on, sizeof(on)) != 0)
+        //     perror("Warning: setsockopt(IP_DONTFRAG) failed");
     }
 #elif defined(IP_PMTUDISC_DO)
     {
         int opt = IP_PMTUDISC_DO;
-        if (setsockopt(fd, IPPROTO_IP, IP_MTU_DISCOVER, &opt, sizeof(opt)) != 0)
-            perror("Warning: setsockopt(IP_MTU_DISCOVER) failed");
+        // if (setsockopt(fd, IPPROTO_IP, IP_MTU_DISCOVER, &opt, sizeof(opt)) != 0)
+        //     perror("Warning: setsockopt(IP_MTU_DISCOVER) failed");
     }
 #endif
 
-    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, host);
+    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, "lo");
 }
