@@ -39,7 +39,7 @@
 #include "quicly/defaults.h"
 #include "quicly/streambuf.h"
 #include "../deps/picotls/t/util.h"
-
+#include <linux/if.h>
 #define MAX_BURST_PACKETS 10
 
 FILE *quicly_trace_fp = NULL;
@@ -738,10 +738,10 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
     signal(SIGINT, on_signal);
     signal(SIGHUP, on_signal);
     
-    // if (bind(fd, sa, salen) != 0) {
-    //     perror("bind(2) failed");
-    //     return 1;
-    // }
+    if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) != 0) {
+        perror("bind(2) failed");
+        return 1;
+    }
 
     while (1) {
         fd_set readfds;
@@ -1101,7 +1101,7 @@ static void push_req(const char *path, int to_file)
 int main(int argc, char **argv)
 {
     const char *cert_file = NULL, *raw_pubkey_file = NULL, *cid_key = NULL;
-    struct sockaddr_storage sa;
+    struct sockaddr_ll sa;
     socklen_t salen;
     unsigned udpbufsize = 0;
     int ch, fd;
@@ -1481,5 +1481,5 @@ int main(int argc, char **argv)
     }
 #endif
 
-    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, "lo");
+    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, "wlp2s0");
 }
