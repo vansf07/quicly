@@ -513,7 +513,7 @@ static void unlock_now(quicly_conn_t *conn)
 static void set_address(quicly_address_t *addr, struct sockaddr *sa)
 {
     if (sa == NULL) {
-        addr->sa.sa_family = AF_UNSPEC;
+        addr->sa.sa_family = AF_PACKET;
         return;
     }
 
@@ -527,6 +527,8 @@ static void set_address(quicly_address_t *addr, struct sockaddr *sa)
     case AF_INET6:
         addr->sin6 = *(struct sockaddr_in6 *)sa;
         break;
+    // case AF_PACKET:
+    //     sll
     default:
         memset(addr, 0xff, sizeof(*addr));
         assert(!"unexpected address type");
@@ -3592,6 +3594,9 @@ int quicly_send_stream(quicly_stream_t *stream, quicly_send_context_t *s)
     uint8_t *dst; /* this pointer points to the current write position within the frame being built, while `s->dst` points to the
                    * beginning of the frame. */
     size_t len;
+
+
+
     int ret, wrote_all, is_fin;
 
     /* write frame type, stream_id and offset, calculate capacity (and store that in `len`) */

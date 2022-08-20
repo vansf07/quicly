@@ -41,6 +41,18 @@
 #include "../deps/picotls/t/util.h"
 #include <linux/if.h>
 #define MAX_BURST_PACKETS 10
+#define DESTMAC0 0xd0
+#define DESTMAC1 0x67
+#define DESTMAC2 0xe5
+#define DESTMAC3 0x12
+#define DESTMAC4 0x6f
+#define DESTMAC5 0x8f
+
+struct new_ip
+{
+    int a;
+};
+
 
 FILE *quicly_trace_fp = NULL;
 static unsigned verbosity = 0;
@@ -414,7 +426,45 @@ static quicly_generate_resumption_token_t generate_resumption_token = {&on_gener
 
 static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *packets, size_t num_packets)
 {
+
     for (size_t i = 0; i != num_packets; ++i) {
+        uint8_t *dst = packets[i].iov_base;
+        struct ifreq ifreq_i;
+        memset(&ifreq_i, 0, sizeof(ifreq_i));
+        strncpy(ifreq_i.ifr_name, "enp0s3", IFNAMSIZ - 1);
+        if ((ioctl(fd, SIOCGIFINDEX, &ifreq_i)) < 0) // getting the the Interface index
+            printf("error in index ioctl reading");
+
+        struct ifreq ifreq_c;
+        memset(&ifreq_c, 0, sizeof(ifreq_c));
+        strncpy(ifreq_c.ifr_name, "enp0s3", IFNAMSIZ - 1);
+        if ((ioctl(fd, SIOCGIFHWADDR, &ifreq_c)) < 0) // getting MAC Address
+            printf("error in SIOCGIFHWADDR ioctl reading");
+
+        char *sendbuff = (unsigned char *)malloc(64); // increase in case of more data
+        memset(sendbuff, 0, 64);
+        struct ethhdr *eth = (struct ethhdr *)(sendbuff);
+        eth->h_source[0] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[0]);
+        eth->h_source[1] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[1]);
+        eth->h_source[2] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[2]);
+        eth->h_source[3] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[3]);
+        eth->h_source[4] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[4]);
+        eth->h_source[5] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[5]);
+
+        eth->h_dest[0] = DESTMAC0;
+        eth->h_dest[1] = DESTMAC1;
+        eth->h_dest[2] = DESTMAC2;
+        eth->h_dest[3] = DESTMAC3;
+        eth->h_dest[4] = DESTMAC4;
+        eth->h_dest[5] = DESTMAC5;
+
+        eth->h_proto = htons(0x88b6);
+
+        struct new_ip *new_iph = (struct new_ip *)(sendbuff + sizeof(struct ethhdr));
+        new_iph->a = 1;
+
+        dst = dst + sizeof(struct ethhdr) + sizeof(struct new_ip);
+
         struct msghdr mess;
         memset(&mess, 0, sizeof(mess));
         mess.msg_name = dest;
@@ -534,7 +584,7 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
     quicly_conn_t *conn = NULL;
 
     memset(&local, 0, sizeof(local));
-    local.sin_family = AF_INET;
+    local.sin_family = AF_PACKET;
     if (bind(fd, (void *)&local, sizeof(local)) != 0) {
         perror("bind(2) failed");
         return 1;
@@ -650,22 +700,22 @@ static int validate_token(struct sockaddr *remote, ptls_iovec_t client_cid, ptls
     /* check address, deferring the use of port number match to type-specific checks */
     if (remote->sa_family != token->remote.sa.sa_family)
         goto AddressMismatch;
-    switch (remote->sa_family) {
-    case AF_INET: {
-        struct sockaddr_in *sin = (struct sockaddr_in *)remote;
-        if (sin->sin_addr.s_addr != token->remote.sin.sin_addr.s_addr)
-            goto AddressMismatch;
-        port_is_equal = sin->sin_port == token->remote.sin.sin_port;
-    } break;
-    case AF_INET6: {
-        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)remote;
-        if (memcmp(&sin6->sin6_addr, &token->remote.sin6.sin6_addr, sizeof(sin6->sin6_addr)) != 0)
-            goto AddressMismatch;
-        port_is_equal = sin6->sin6_port == token->remote.sin6.sin6_port;
-    } break;
-    default:
-        goto UnknownAddressType;
-    }
+    // switch (remote->sa_family) {
+    // case AF_INET: {
+    //     struct sockaddr_in *sin = (struct sockaddr_in *)remote;
+    //     if (sin->sin_addr.s_addr != token->remote.sin.sin_addr.s_addr)
+    //         goto AddressMismatch;
+    //     port_is_equal = sin->sin_port == token->remote.sin.sin_port;
+    // } break;
+    // case AF_INET6: {
+    //     struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)remote;
+    //     if (memcmp(&sin6->sin6_addr, &token->remote.sin6.sin6_addr, sizeof(sin6->sin6_addr)) != 0)
+    //         goto AddressMismatch;
+    //     port_is_equal = sin6->sin6_port == token->remote.sin6.sin6_port;
+    // } break;
+    // default:
+    //     goto UnknownAddressType;
+    // }
 
     /* type-specific checks */
     switch (token->type) {
@@ -707,41 +757,40 @@ CIDMismatch:
     return 0;
 }
 
-static inline int resolve_address(int* fd, char* device, struct sockaddr *sa, socklen_t *salen, int family, int type,
-                                  int proto)
-{
-    struct ifreq ifr;
-    struct sockaddr_ll sll;
-    memset(&ifr, 0, sizeof(ifr));
-    memset(&sll, 0, sizeof(sll));
+// static inline int resolve_address(int fd, char* device, struct sockaddr *sa, socklen_t *salen, int family, int type,
+//                                   int proto)
+// {
+//     struct ifreq ifr;
+//     struct sockaddr_ll sll;
+//     memset(&ifr, 0, sizeof(ifr));
+//     memset(&sll, 0, sizeof(sll));
 
+//     fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+//     strncpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
 
-    *fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    strncpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+//     if(ioctl(fd, SIOCGIFINDEX, &ifr) == -1) {
+//         fprintf(stderr," ERR: ioctl failed for device: %s\n", device);
+//         return -1; }
+//     sll.sll_family      = family;
+//     sll.sll_pkttype     = type;
+//     sll.sll_ifindex     = ifr.ifr_ifindex;
+//     sll.sll_protocol    = proto;
 
-    if(ioctl(*fd, SIOCGIFINDEX, &ifr) == -1) { 
-        printf(" ERR: ioctl failed for device: %s\n", device); 
-        return -1; }
-    sll.sll_family      = family;
-    sll.sll_pkttype     = type;
-    sll.sll_ifindex     = ifr.ifr_ifindex;
-    sll.sll_protocol    = proto;
+//     memcpy(sa, sll.sll_addr, sll.sll_halen);
+//     *salen = sll.sll_halen;
 
-    memcpy(sa, sll.sll_addr, sll.sll_halen);
-    *salen = sll.sll_halen;
-
-    return 0;
-}
+//     if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0) {
+//         perror("bind(2) failed");
+//         return 1;
+//     }
+//     return 0;
+// }
 
 static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
 {
+    fprintf(stderr, "S-14\n");
     signal(SIGINT, on_signal);
     signal(SIGHUP, on_signal);
-    
-    if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) != 0) {
-        perror("bind(2) failed");
-        return 1;
-    }
 
     while (1) {
         fd_set readfds;
@@ -770,8 +819,11 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
             FD_ZERO(&readfds);
             FD_SET(fd, &readfds);
         } while (select(fd + 1, &readfds, NULL, NULL, tv) == -1 && errno == EINTR);
+        fprintf(stderr, "outside loop\n");
         if (FD_ISSET(fd, &readfds)) {
+            fprintf(stderr, "S-16\n");
             while (1) {
+                fprintf(stderr, "S-17\n");
                 uint8_t buf[ctx.transport_params.max_udp_payload_size];
                 struct msghdr mess;
                 quicly_address_t remote;
@@ -785,8 +837,8 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 mess.msg_iovlen = 1;
                 ssize_t rret;
 
-                unsigned char *buffer = (unsigned char *) malloc(65536); //to receive data
-                memset(buffer,0,65536);
+                unsigned char *buffer = (unsigned char *)malloc(65536); // to receive data
+                memset(buffer, 0, 65536);
 
                 while ((rret = recvfrom(fd, buffer, 65536, 0, sa, (socklen_t *)&salen)) == -1 && errno == EINTR)
                     ;
@@ -795,7 +847,10 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 if (verbosity >= 2)
                     hexdump("recvmsg", buf, rret);
                 size_t off = 0;
+                int p = 0;
                 while (off != rret) {
+                    fprintf(stderr, "S-18\n");
+                    fprintf(stderr, "Packet decoded %d \n", p);
                     quicly_decoded_packet_t packet;
                     if (quicly_decode_packet(&ctx, &packet, buf, rret, &off) == SIZE_MAX)
                         break;
@@ -812,7 +867,7 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                         if (packet.cid.dest.encrypted.len > QUICLY_MAX_CID_LEN_V1 || packet.cid.src.len > QUICLY_MAX_CID_LEN_V1)
                             break;
                     }
-
+                    fprintf(stderr, "S-19\n");
                     quicly_conn_t *conn = NULL;
                     size_t i;
                     for (i = 0; i != num_conns; ++i) {
@@ -891,6 +946,7 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
             for (i = 0; i != num_conns; ++i) {
                 if (quicly_get_first_timeout(conns[i]) <= ctx.now->cb(ctx.now)) {
                     if (send_pending(fd, conns[i]) != 0) {
+                        fprintf(stderr, "Here!");
                         dump_stats(stderr, conns[i]);
                         quicly_free(conns[i]);
                         memmove(conns + i, conns + i + 1, (num_conns - i - 1) * sizeof(*conns));
@@ -1100,8 +1156,8 @@ static void push_req(const char *path, int to_file)
 
 int main(int argc, char **argv)
 {
-    const char *cert_file = NULL, *raw_pubkey_file = NULL, *cid_key = NULL;
-    struct sockaddr_ll sa;
+    const char *cert_file = NULL, *raw_pubkey_file = NULL, *host, *port, *cid_key = NULL;
+    struct sockaddr sa;
     socklen_t salen;
     unsigned udpbufsize = 0;
     int ch, fd;
@@ -1435,13 +1491,38 @@ int main(int argc, char **argv)
         fprintf(stderr, "missing host and port\n");
         exit(1);
     }
+    host = (--argc, *argv++);
+    port = (--argc, *argv++);
 
-    if (resolve_address(&fd, "wlp2s0",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
-        {
-            exit(1);
-        }
+    // if (resolve_address(fd, "wlp2s0",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
+    //     {
+    //         exit(1);
+    //     }
 
-    
+    struct ifreq ifr;
+    struct sockaddr_ll sll;
+    memset(&ifr, 0, sizeof(ifr));
+    memset(&sll, 0, sizeof(sll));
+
+    fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    strncpy(ifr.ifr_name, "wlp2s0", sizeof(ifr.ifr_name));
+
+    if (ioctl(fd, SIOCGIFINDEX, &ifr) == -1) {
+        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "wlp2s0");
+        return -1;
+    }
+    sll.sll_family = AF_PACKET;
+    sll.sll_pkttype = SOCK_RAW;
+    sll.sll_ifindex = ifr.ifr_ifindex;
+    sll.sll_protocol = htons(ETH_P_ALL);
+
+    memcpy(&sa, sll.sll_addr, sll.sll_halen);
+    salen = sll.sll_halen;
+
+    if (bind(fd, (struct sockaddr *)&sa, salen) != 0) {
+        perror("bind(2) failed");
+        exit(1);
+    }
 
     // if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) == -1){
     //     perror("bind socket(2) failed");
