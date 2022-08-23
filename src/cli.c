@@ -442,13 +442,13 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         struct ifreq ifreq_i;
         int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip) + packets[i].iov_len;
         memset(&ifreq_i, 0, sizeof(ifreq_i));
-        strncpy(ifreq_i.ifr_name, "enp0s3", IFNAMSIZ - 1);
+        strncpy(ifreq_i.ifr_name, "wlp2s0", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFINDEX, &ifreq_i)) < 0) // getting the the Interface index
             printf("error in index ioctl reading");
 
         struct ifreq ifreq_c;
         memset(&ifreq_c, 0, sizeof(ifreq_c));
-        strncpy(ifreq_c.ifr_name, "enp0s3", IFNAMSIZ - 1);
+        strncpy(ifreq_c.ifr_name, "wlp2s0", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFHWADDR, &ifreq_c)) < 0) // getting MAC Address
             printf("error in SIOCGIFHWADDR ioctl reading");
 
@@ -615,10 +615,10 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
 
     memset(&local, 0, sizeof(local));
     local.sin_family = AF_PACKET;
-    if (bind(fd, (void *)&local, sizeof(local)) != 0) {
-        perror("bind(2) failed");
-        return 1;
-    }
+    // if (bind(fd, (void *)&local, sizeof(local)) != 0) {
+    //     perror("bind(2) failed");
+    //     return 1;
+    // }
     ret = quicly_connect(&conn, &ctx, host, sa, NULL, &next_cid, resumption_token, &hs_properties, &resumed_transport_params);
     assert(ret == 0);
     ++next_cid.master_id;
@@ -1524,7 +1524,7 @@ int main(int argc, char **argv)
     host = (--argc, *argv++);
     port = (--argc, *argv++);
 
-    // if (resolve_address(fd, "enp0s3",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
+    // if (resolve_address(fd, "wlp2s0",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
     //     {
     //         exit(1);
     //     }
@@ -1535,10 +1535,10 @@ int main(int argc, char **argv)
     memset(&sll, 0, sizeof(sll));
 
     fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    strncpy(ifr.ifr_name, "enp0s3", sizeof(ifr.ifr_name));
+    strncpy(ifr.ifr_name, "wlp2s0", sizeof(ifr.ifr_name));
 
     if (ioctl(fd, SIOCGIFINDEX, &ifr) == -1) {
-        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "enp0s3");
+        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "wlp2s0");
         return -1;
     }
     sll.sll_family = AF_PACKET;
@@ -1592,5 +1592,5 @@ int main(int argc, char **argv)
     }
 #endif
 
-    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, "enp0s3");
+    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, host);
 }
