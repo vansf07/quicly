@@ -498,8 +498,8 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         mess.msg_namelen = sizeof(sadr_ll);
         mess.msg_iov = sendbuff;
         mess.msg_iovlen = 1;
-        message.msg_control = 0;
-        message.msg_controllen = 0;
+        mess.msg_control = 0;
+        mess.msg_controllen = 0;
 
         if (verbosity >= 2)
             hexdump("sendmsg", packets[i].iov_base, packets[i].iov_len);
@@ -1524,7 +1524,7 @@ int main(int argc, char **argv)
     host = (--argc, *argv++);
     port = (--argc, *argv++);
 
-    // if (resolve_address(fd, "wlp2s0",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
+    // if (resolve_address(fd, "enp0s3",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
     //     {
     //         exit(1);
     //     }
@@ -1535,10 +1535,10 @@ int main(int argc, char **argv)
     memset(&sll, 0, sizeof(sll));
 
     fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    strncpy(ifr.ifr_name, "wlp2s0", sizeof(ifr.ifr_name));
+    strncpy(ifr.ifr_name, "enp0s3", sizeof(ifr.ifr_name));
 
     if (ioctl(fd, SIOCGIFINDEX, &ifr) == -1) {
-        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "wlp2s0");
+        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "enp0s3");
         return -1;
     }
     sll.sll_family = AF_PACKET;
@@ -1549,10 +1549,10 @@ int main(int argc, char **argv)
     memcpy(&sa, sll.sll_addr, sll.sll_halen);
     salen = sll.sll_halen;
 
-    if (bind(fd, (struct sockaddr *)&sa, salen) != 0) {
-        perror("bind(2) failed");
-        exit(1);
-    }
+    // if (bind(fd, (struct sockaddr *)&sa, salen) != 0) {
+    //     perror("bind(2) failed");
+    //     exit(1);
+    // }
 
     // if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) == -1){
     //     perror("bind socket(2) failed");
@@ -1592,5 +1592,5 @@ int main(int argc, char **argv)
     }
 #endif
 
-    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, "wlp2s0");
+    return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, "enp0s3");
 }
