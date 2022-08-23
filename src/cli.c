@@ -40,6 +40,19 @@
 #include "quicly/streambuf.h"
 #include "../deps/picotls/t/util.h"
 #include <linux/if.h>
+
+#include <stdio.h>
+#include <string.h>
+#include <malloc.h>
+#include <errno.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/if_ether.h>
+#include <netinet/udp.h>
+#include <linux/if_packet.h>
+#include <arpa/inet.h>
+
 #define MAX_BURST_PACKETS 10
 #define DESTMAC0 0xd0
 #define DESTMAC1 0x67
@@ -48,11 +61,9 @@
 #define DESTMAC4 0x6f
 #define DESTMAC5 0x8f
 
-struct new_ip
-{
+struct new_ip {
     int a;
 };
-
 
 FILE *quicly_trace_fp = NULL;
 static unsigned verbosity = 0;
@@ -428,8 +439,8 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
 {
 
     for (size_t i = 0; i != num_packets; ++i) {
-        uint8_t *dst = packets[i].iov_base;
         struct ifreq ifreq_i;
+        int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip) + packets[i].iov_len;
         memset(&ifreq_i, 0, sizeof(ifreq_i));
         strncpy(ifreq_i.ifr_name, "enp0s3", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFINDEX, &ifreq_i)) < 0) // getting the the Interface index
@@ -441,8 +452,8 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         if ((ioctl(fd, SIOCGIFHWADDR, &ifreq_c)) < 0) // getting MAC Address
             printf("error in SIOCGIFHWADDR ioctl reading");
 
-        char *sendbuff = (unsigned char *)malloc(64); // increase in case of more data
-        memset(sendbuff, 0, 64);
+        char *sendbuff = (unsigned char *)malloc(total_len); // increase in case of more data
+        memset(sendbuff, 0, total_len);
         struct ethhdr *eth = (struct ethhdr *)(sendbuff);
         eth->h_source[0] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[0]);
         eth->h_source[1] = (unsigned char)(ifreq_c.ifr_hwaddr.sa_data[1]);
@@ -463,14 +474,33 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         struct new_ip *new_iph = (struct new_ip *)(sendbuff + sizeof(struct ethhdr));
         new_iph->a = 1;
 
-        dst = dst + sizeof(struct ethhdr) + sizeof(struct new_ip);
+        uint8_t *temp = (uint8_t *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
+        temp = packets[i].iov_base;
+
+        struct iovec iov[1];
+        iov[0].iov_base = sendbuff;
+        iov[0].iov_len = total_len;
+
+        struct sockaddr_ll sadr_ll;
+        sadr_ll.sll_ifindex = ifreq_i.ifr_ifindex;
+        sadr_ll.sll_halen = ETH_ALEN;
+        sadr_ll.sll_addr[0] = DESTMAC0;
+        sadr_ll.sll_addr[1] = DESTMAC1;
+        sadr_ll.sll_addr[2] = DESTMAC2;
+        sadr_ll.sll_addr[3] = DESTMAC3;
+        sadr_ll.sll_addr[4] = DESTMAC4;
+        sadr_ll.sll_addr[5] = DESTMAC5;
+        sadr_ll.sll_family = AF_PACKET;
 
         struct msghdr mess;
         memset(&mess, 0, sizeof(mess));
-        mess.msg_name = dest;
-        mess.msg_namelen = quicly_get_socklen(dest);
-        mess.msg_iov = &packets[i];
+        mess.msg_name = &sadr_ll;
+        mess.msg_namelen = sizeof(sadr_ll);
+        mess.msg_iov = sendbuff;
         mess.msg_iovlen = 1;
+        message.msg_control = 0;
+        message.msg_controllen = 0;
+
         if (verbosity >= 2)
             hexdump("sendmsg", packets[i].iov_base, packets[i].iov_len);
         int ret;
