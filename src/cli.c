@@ -441,8 +441,8 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
     for (size_t i = 0; i != num_packets; ++i) {
 
         fprintf(stderr, "Debug starts:\n");
-        char *packet_contents = packets[i].iov_base;
-        fprintf("%s\n", packet_contents);
+        char *packet_contents = (char *)packets[i].iov_base;
+        fprintf(stderr, "%s\n", packet_contents);
         fprintf(stderr, "Debug ends:\n");
 
         struct ifreq ifreq_i;
