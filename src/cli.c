@@ -439,16 +439,22 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
 {
 
     for (size_t i = 0; i != num_packets; ++i) {
+
+        fprintf(stderr, "Debug starts:\n");
+        char *packet_contents = packets[i].iov_base;
+        fprintf("%s\n", packet_contents);
+        fprintf(stderr, "Debug ends:\n");
+
         struct ifreq ifreq_i;
         int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip) + packets[i].iov_len;
         memset(&ifreq_i, 0, sizeof(ifreq_i));
-        strncpy(ifreq_i.ifr_name, "wlp2s0", IFNAMSIZ - 1);
+        strncpy(ifreq_i.ifr_name, "enp0s3", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFINDEX, &ifreq_i)) < 0) // getting the the Interface index
             printf("error in index ioctl reading");
 
         struct ifreq ifreq_c;
         memset(&ifreq_c, 0, sizeof(ifreq_c));
-        strncpy(ifreq_c.ifr_name, "wlp2s0", IFNAMSIZ - 1);
+        strncpy(ifreq_c.ifr_name, "enp0s3", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFHWADDR, &ifreq_c)) < 0) // getting MAC Address
             printf("error in SIOCGIFHWADDR ioctl reading");
 
@@ -481,6 +487,8 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         iov[0].iov_base = sendbuff;
         iov[0].iov_len = total_len;
 
+        fprintf(stderr, "total_len = %d\n", total_len);
+
         struct sockaddr_ll sadr_ll;
         sadr_ll.sll_ifindex = ifreq_i.ifr_ifindex;
         sadr_ll.sll_halen = ETH_ALEN;
@@ -496,7 +504,7 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         memset(&mess, 0, sizeof(mess));
         mess.msg_name = &sadr_ll;
         mess.msg_namelen = sizeof(sadr_ll);
-        mess.msg_iov = sendbuff;
+        mess.msg_iov = iov;
         mess.msg_iovlen = 1;
         mess.msg_control = 0;
         mess.msg_controllen = 0;
@@ -506,8 +514,13 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         int ret;
         while ((ret = (int)sendmsg(fd, &mess, 0)) == -1 && errno == EINTR)
             ;
-        if (ret == -1)
+        if (ret == -1) {
+            // fprintf(stderr, "sendmsg() api is \n");
             perror("sendmsg failed");
+
+        } else {
+            fprintf(stderr, "sendmsg returned: %d\n", ret);
+        }
     }
 }
 
@@ -1524,7 +1537,7 @@ int main(int argc, char **argv)
     host = (--argc, *argv++);
     port = (--argc, *argv++);
 
-    // if (resolve_address(fd, "wlp2s0",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
+    // if (resolve_address(fd, "enp0s3",(void *)&sa, &salen, AF_PACKET, SOCK_RAW, htons(ETH_P_ALL)) != 0)
     //     {
     //         exit(1);
     //     }
@@ -1535,10 +1548,10 @@ int main(int argc, char **argv)
     memset(&sll, 0, sizeof(sll));
 
     fd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    strncpy(ifr.ifr_name, "wlp2s0", sizeof(ifr.ifr_name));
+    strncpy(ifr.ifr_name, "enp0s3", sizeof(ifr.ifr_name));
 
     if (ioctl(fd, SIOCGIFINDEX, &ifr) == -1) {
-        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "wlp2s0");
+        fprintf(stderr, " ERR: ioctl failed for device: %s\n", "enp0s3");
         return -1;
     }
     sll.sll_family = AF_PACKET;

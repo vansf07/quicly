@@ -2077,7 +2077,7 @@ static quicly_conn_t *create_connection(quicly_context_t *ctx, uint32_t protocol
     quicly_conn_t *conn;
 
     /* consistency checks */
-    assert(remote_addr != NULL && remote_addr->sa_family != AF_UNSPEC);
+    // assert(remote_addr != NULL && remote_addr->sa_family != AF_UNSPEC);
     if (ctx->transport_params.max_datagram_frame_size != 0)
         assert(ctx->receive_datagram_frame != NULL);
 
@@ -5847,7 +5847,7 @@ int quicly_receive(quicly_conn_t *conn, struct sockaddr *dest_addr, struct socka
     uint64_t pn, offending_frame_type = QUICLY_FRAME_TYPE_PADDING;
     int is_ack_only, ret;
 
-    assert(src_addr->sa_family == AF_INET || src_addr->sa_family == AF_INET6);
+    // assert(src_addr->sa_family == AF_INET || src_addr->sa_family == AF_INET6);
 
     lock_now(conn, 0);
 
