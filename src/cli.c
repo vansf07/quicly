@@ -62,7 +62,7 @@
 #define DESTMAC5 0x8f
 
 struct new_ip {
-    int a;
+    char a[5];
 };
 
 FILE *quicly_trace_fp = NULL;
@@ -440,10 +440,10 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
 
     for (size_t i = 0; i != num_packets; ++i) {
 
-        fprintf(stderr, "Debug starts:\n");
-        char *packet_contents = (char *)packets[i].iov_base;
-        fprintf(stderr, "%s\n", packet_contents);
-        fprintf(stderr, "Debug ends:\n");
+        // fprintf(stderr, "Debug starts:\n");
+        // int *packet_contents = (int *)packets[i].iov_base;
+        // fprintf(stderr, "%d\n", *packet_contents);
+        // fprintf(stderr, "Debug ends:\n");
 
         struct ifreq ifreq_i;
         int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip) + packets[i].iov_len;
@@ -478,10 +478,37 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         eth->h_proto = htons(0x88b6);
 
         struct new_ip *new_iph = (struct new_ip *)(sendbuff + sizeof(struct ethhdr));
-        new_iph->a = 1;
+        new_iph->a[0] = 'A';
+        new_iph->a[1] = 'B';
+        new_iph->a[2] = 'C';
+        new_iph->a[3] = 'D';
+        new_iph->a[4] = 'E';
 
-        uint8_t *temp = (uint8_t *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
-        temp = packets[i].iov_base;
+        char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
+
+        // I
+
+        for (int j = 0; j < packets[i].iov_len; j++) {
+            char **pChar;
+            pChar = (char **)&packets[i].iov_base;
+            temp[j] = *((*pChar) + j);
+        }
+
+        // char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
+        // temp = (char *)packets[i].iov_base;
+
+        // sendbuff[sizeof(struct ethhdr) + sizeof(struct new_ip)] = 'F';
+
+        // char dummy_char[3];
+        // dummy_char[0] = 'G';
+        // dummy_char[1] = 'H';
+        // dummy_char[2] = 'I';
+
+        // void *dummy_void = (void *)dummy_char;
+        // sendbuff[sizeof(struct ethhdr) + sizeof(struct new_ip)] = 'F';
+        // fprintf(stderr, "dummy : %s", (char *)dummy_void);
+        // void *temp = (void *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
+        // temp = (void *)dummy_void;
 
         struct iovec iov[1];
         iov[0].iov_base = sendbuff;
@@ -508,6 +535,14 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         mess.msg_iovlen = 1;
         mess.msg_control = 0;
         mess.msg_controllen = 0;
+
+        fprintf(stderr, "Debug starts:\n");
+        int *packet_contents = (int *)sendbuff;
+        fprintf(stderr, "%d\n\n", *packet_contents);
+
+        long long int *payload_contents = (long long int *)temp;
+        fprintf(stderr, "%d\n\n", *payload_contents);
+        fprintf(stderr, "Debug ends:\n\n");
 
         if (verbosity >= 2)
             hexdump("sendmsg", packets[i].iov_base, packets[i].iov_len);
