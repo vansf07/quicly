@@ -61,8 +61,31 @@
 #define DESTMAC4 0x6f
 #define DESTMAC5 0x8f
 
-struct new_ip {
-    char a[5];
+// NEW-IP OFFSET HEADER
+
+struct new_ip_offset {
+    __u8 shipping_offset;
+    __u8 contract_offset;
+    __u8 payload_offset;
+};
+
+// NEW-IP SHIPPING SEC
+
+struct shipping_spec {
+    __u8 src_addr_type;
+    __u8 dst_addr_type;
+    __u8 addr_cast;
+};
+
+// LBF CONTRACT
+
+struct latency_based_forwarding {
+    __u16 contract_type;
+    __u16 min_delay;
+    __u16 max_delay;
+    __u16 experienced_delay;
+    __u16 fib_todelay;
+    __u16 fib_tohops;
 };
 
 FILE *quicly_trace_fp = NULL;
@@ -440,13 +463,9 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
 
     for (size_t i = 0; i != num_packets; ++i) {
 
-        // fprintf(stderr, "Debug starts:\n");
-        // int *packet_contents = (int *)packets[i].iov_base;
-        // fprintf(stderr, "%d\n", *packet_contents);
-        // fprintf(stderr, "Debug ends:\n");
-
         struct ifreq ifreq_i;
-        int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip) + packets[i].iov_len;
+        int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) +
+                        sizeof(struct latency_based_forwarding) + packets[i].iov_len;
         memset(&ifreq_i, 0, sizeof(ifreq_i));
         strncpy(ifreq_i.ifr_name, "enp0s3", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFINDEX, &ifreq_i)) < 0) // getting the the Interface index
@@ -477,44 +496,24 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
 
         eth->h_proto = htons(0x88b6);
 
-        struct new_ip *new_iph = (struct new_ip *)(sendbuff + sizeof(struct ethhdr));
-        new_iph->a[0] = 'A';
-        new_iph->a[1] = 'B';
-        new_iph->a[2] = 'C';
-        new_iph->a[3] = 'D';
-        new_iph->a[4] = 'E';
+        struct new_ip_offset *new_ip_offset_val;
+        new_ip_offset_val = (struct new_ip_offset *)(sendbuff + sizeof(struct ethhdr));
+        new_ip_offset_val->shipping_offset = 1;
+        new_ip_offset_val->contract_offset = 2;
+        new_ip_offset_val->payload_offset = 3;
 
-        char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
+        char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) +
+                              sizeof(struct latency_based_forwarding));
 
-        // I
-
+        char **pChar;
+        pChar = (char **)&packets[i].iov_base;
         for (int j = 0; j < packets[i].iov_len; j++) {
-            char **pChar;
-            pChar = (char **)&packets[i].iov_base;
             temp[j] = *((*pChar) + j);
         }
-
-        // char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
-        // temp = (char *)packets[i].iov_base;
-
-        // sendbuff[sizeof(struct ethhdr) + sizeof(struct new_ip)] = 'F';
-
-        // char dummy_char[3];
-        // dummy_char[0] = 'G';
-        // dummy_char[1] = 'H';
-        // dummy_char[2] = 'I';
-
-        // void *dummy_void = (void *)dummy_char;
-        // sendbuff[sizeof(struct ethhdr) + sizeof(struct new_ip)] = 'F';
-        // fprintf(stderr, "dummy : %s", (char *)dummy_void);
-        // void *temp = (void *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip));
-        // temp = (void *)dummy_void;
 
         struct iovec iov[1];
         iov[0].iov_base = sendbuff;
         iov[0].iov_len = total_len;
-
-        fprintf(stderr, "total_len = %d\n", total_len);
 
         struct sockaddr_ll sadr_ll;
         sadr_ll.sll_ifindex = ifreq_i.ifr_ifindex;
@@ -536,14 +535,6 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         mess.msg_control = 0;
         mess.msg_controllen = 0;
 
-        fprintf(stderr, "Debug starts:\n");
-        int *packet_contents = (int *)sendbuff;
-        fprintf(stderr, "%d\n\n", *packet_contents);
-
-        long long int *payload_contents = (long long int *)temp;
-        fprintf(stderr, "%d\n\n", *payload_contents);
-        fprintf(stderr, "Debug ends:\n\n");
-
         if (verbosity >= 2)
             hexdump("sendmsg", packets[i].iov_base, packets[i].iov_len);
         int ret;
@@ -552,9 +543,6 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         if (ret == -1) {
             // fprintf(stderr, "sendmsg() api is \n");
             perror("sendmsg failed");
-
-        } else {
-            fprintf(stderr, "sendmsg returned: %d\n", ret);
         }
     }
 }
