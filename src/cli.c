@@ -906,19 +906,26 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 unsigned char *buffer = (unsigned char *)malloc(65536); // to receive data
                 memset(buffer, 0, 65536);
 
-                while ((rret = recvfrom(fd, buffer, 65536, 0, sa, (socklen_t *)&salen)) == -1 && errno == EINTR)
-                    ;
+                while ((rret = recvfrom(fd, buffer, 65536, 0, sa, (socklen_t *)&salen)) == -1 && errno == EINTR);
                 if (rret == -1)
                     break;
                 if (verbosity >= 2)
                     hexdump("recvmsg", buf, rret);
                 size_t off = 0;
                 int p = 0;
+
+                //reading ethhdr from buffer
+                struct ethhdr *eth = (struct ethhdr *)(buffer);
+                if (htons(eth->h_proto) == 0x88b6){      
+                fprintf(stderr, "eth->h_proto : %x\n", htons(eth->h_proto));
+                uint8_t tempbuf[sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding)];
+                *tempbuf = (uint8_t *)(buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding));
+                
                 while (off != rret) {
                     fprintf(stderr, "S-18\n");
                     fprintf(stderr, "Packet decoded %d \n", p);
                     quicly_decoded_packet_t packet;
-                    if (quicly_decode_packet(&ctx, &packet, buf, rret, &off) == SIZE_MAX)
+                    if (quicly_decode_packet(&ctx, &packet, tempbuf, rret, &off) == SIZE_MAX)
                         break;
                     if (QUICLY_PACKET_IS_LONG_HEADER(packet.octets.base[0])) {
                         if (packet.version != 0 && !quicly_is_supported_version(packet.version)) {
@@ -1005,6 +1012,7 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                         }
                     }
                 }
+                }        
             }
         }
         {
