@@ -918,7 +918,7 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 struct ethhdr *eth = (struct ethhdr *)(buffer);
                 if (htons(eth->h_proto) == 0x88b6){      
                 fprintf(stderr, "eth->h_proto : %x\n", htons(eth->h_proto));
-                uint8_t tempbuf[sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding)];
+                uint8_t tempbuf[rret];
                 *tempbuf = (uint8_t *)(buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding));
                 
                 while (off != rret) {
