@@ -660,7 +660,7 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
     ++next_cid.master_id;
     enqueue_requests(conn);
     send_pending(fd, conn);
-
+ 
     while (1) {
         fd_set readfds;
         struct timeval *tv, tvbuf;
@@ -708,9 +708,17 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                 if (verbosity >= 2)
                     hexdump("recvmsg", buf, rret);
                 size_t off = 0;
+                //decoding the raw packet
+                struct ethhdr *eth = (struct ethhdr *)(buf);
+                if (htons(eth->h_proto) == 0x88b6){      
+                fprintf(stderr, "eth->h_proto : %x\nrret : %lu", htons(eth->h_proto), (unsigned long int)rret);        
+                int lenToPayload = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding);
+                uint8_t tempbuf[rret];
+                *tempbuf = (uint8_t *)(buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding)); 
+                
                 while (off != rret) {
                     quicly_decoded_packet_t packet;
-                    if (quicly_decode_packet(&ctx, &packet, buf, rret, &off) == SIZE_MAX)
+                    if (quicly_decode_packet(&ctx, &packet, tempbuf, rret, &off) == SIZE_MAX)
                         break;
                     quicly_receive(conn, NULL, &sa, &packet);
                     if (send_datagram_frame && quicly_connection_is_ready(conn)) {
@@ -721,6 +729,7 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                     }
                 }
             }
+        }
         }
         if (conn != NULL) {
             ret = send_pending(fd, conn);
