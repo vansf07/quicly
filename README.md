@@ -5,6 +5,8 @@ Quicly is a QUIC implementation, written from the ground up to be used within th
 
 The software is licensed under the MIT License.
 
+[Link to setup quic integrated with new-ip.](https://github.com/vansf07/quicly/blob/master/SETUP.md) 
+
 How to build
 ---
 
