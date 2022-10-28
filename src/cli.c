@@ -502,8 +502,14 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
         new_ip_offset_val->contract_offset = 2;
         new_ip_offset_val->payload_offset = 3;
 
-        char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) +
-                              sizeof(struct latency_based_forwarding));
+        struct shipping_spec *shipping_spec_val;
+        shipping_spec_val = (struct shipping_spec *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip_offset));
+        shipping_spec_val->src_addr_type = 2;       
+        shipping_spec_val->dst_addr_type = 3;  
+        shipping_spec_val->addr_cast = 4;
+
+
+        char *temp = (char *)(sendbuff + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec)); 
 
         char **pChar;
         pChar = (char **)&packets[i].iov_base;
@@ -712,9 +718,16 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                 struct ethhdr *eth = (struct ethhdr *)(buf);
                 if (htons(eth->h_proto) == 0x88b6){      
                 fprintf(stderr, "eth->h_proto : %x\nrret : %lu", htons(eth->h_proto), (unsigned long int)rret);        
-                int lenToPayload = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding);
-                uint8_t tempbuf[rret];
-                *tempbuf = (uint8_t *)(buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding)); 
+                int lenToPayload = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec);
+                
+                unsigned char **tempbuf = (unsigned char *)(buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec));
+
+                unsigned char **pChar;
+                pChar = (unsigned char **)&buf;
+                int i_cnt=0;
+                for (int j = lenToPayload; j < rret; j++) {
+                    tempbuf[i_cnt++] = *((*pChar) + j);
+                }
                 
                 while (off != rret) {
                     quicly_decoded_packet_t packet;
@@ -916,6 +929,7 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 memset(buffer, 0, 65536);
 
                 while ((rret = recvfrom(fd, buffer, 65536, 0, sa, (socklen_t *)&salen)) == -1 && errno == EINTR);
+                
                 if (rret == -1)
                     break;
                 if (verbosity >= 2)
@@ -926,9 +940,19 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 //reading ethhdr from buffer
                 struct ethhdr *eth = (struct ethhdr *)(buffer);
                 if (htons(eth->h_proto) == 0x88b6){      
-                fprintf(stderr, "eth->h_proto : %x\n", htons(eth->h_proto));
-                uint8_t tempbuf[rret];
-                *tempbuf = (uint8_t *)(buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + sizeof(struct latency_based_forwarding));
+                fprintf(stderr, "eth->h_proto : %x\nrret : %lu", htons(eth->h_proto), (unsigned long int)rret);
+                
+                int lenToPayload = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) ;
+                
+                unsigned char **tempbuf = (unsigned char *)(buffer + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec));
+                
+                unsigned char **pChar;
+                pChar = (unsigned char **)&buffer;
+                int i_cnt=0;
+                for (int j = lenToPayload; j < rret; j++) {
+                    tempbuf[i_cnt++] = *((*pChar) + j);
+                }
+
                 
                 while (off != rret) {
                     fprintf(stderr, "S-18\n");
@@ -1647,3 +1671,4 @@ int main(int argc, char **argv)
 
     return ctx.tls->certificates.count != 0 ? run_server(fd, (void *)&sa, salen) : run_client(fd, (void *)&sa, host);
 }
+
