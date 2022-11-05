@@ -464,8 +464,7 @@ static void send_packets_default(int fd, struct sockaddr *dest, struct iovec *pa
     for (size_t i = 0; i != num_packets; ++i) {
 
         struct ifreq ifreq_i;
-        int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) +
-                        sizeof(struct latency_based_forwarding) + packets[i].iov_len;
+        int total_len = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) + packets[i].iov_len;
         memset(&ifreq_i, 0, sizeof(ifreq_i));
         strncpy(ifreq_i.ifr_name, "wlp43s0", IFNAMSIZ - 1);
         if ((ioctl(fd, SIOCGIFINDEX, &ifreq_i)) < 0) // getting the the Interface index
@@ -718,7 +717,7 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                 //decoding the raw packet
                 struct ethhdr *eth = (struct ethhdr *)(buf);
                 if (htons(eth->h_proto) == 0x88b6){      
-                fprintf(stderr, "eth->h_proto : %x\nrret : %lu", htons(eth->h_proto), (unsigned long int)rret);        
+                fprintf(stderr, "eth->h_proto : %x\nrret : %lu\n", htons(eth->h_proto), (unsigned long int)rret);        
                 
                 //printing new_ip_offset
                 struct new_ip_offset *new_ip_offset_val = (struct new_ip_offset *)(buf + sizeof(struct ethhdr));
@@ -945,12 +944,14 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 int p = 0;          
                 //reading ethhdr from buffer
                 struct ethhdr *eth = (struct ethhdr *)(buf);
-                if (htons(eth->h_proto) == 0x88b6){      
+                if (htons(eth->h_proto) == 0x88b6){ 
+
+                fprintf(stderr, "rret : %d\n",rret );     
                 fprintf(stderr, "eth->h_proto : %x\n", htons(eth->h_proto));
                 fprintf(stderr, "eth->h_source : %x\n", eth->h_source);
                 fprintf(stderr, "eth->h_dest : %x\n", eth->h_dest);
-
-                 // print new_ip_offset
+            
+                // print new_ip_offset
                 struct new_ip_offset *new_ip_offset_val = (struct new_ip_offset *)(buf + sizeof(struct ethhdr));
                 fprintf(stderr, "new_ip_offset_val->shipping_offset : %x\n", new_ip_offset_val->shipping_offset);
                 fprintf(stderr, "new_ip_offset_val->contract_offset : %x\n", new_ip_offset_val->contract_offset);
