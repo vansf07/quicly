@@ -531,7 +531,7 @@ static void set_address(quicly_address_t *addr, struct sockaddr *sa)
     //     sll
     default:
         memset(addr, 0xff, sizeof(*addr));
-        assert(!"unexpected address type");
+        //assert(!"unexpected address type");
         break;
     }
 }
@@ -5302,8 +5302,8 @@ static int compare_socket_address(struct sockaddr *x, struct sockaddr *y)
     if (a != b)                                                                                                                    \
     return a < b ? -1 : 1
 
+    fprintf(stderr, "compare_socket_address");
     CMP(x->sa_family, y->sa_family);
-
     if (x->sa_family == AF_INET) {
         struct sockaddr_in *xin = (void *)x, *yin = (void *)y;
         CMP(ntohl(xin->sin_addr.s_addr), ntohl(yin->sin_addr.s_addr));
@@ -5317,8 +5317,10 @@ static int compare_socket_address(struct sockaddr *x, struct sockaddr *y)
         CMP(xin6->sin6_flowinfo, yin6->sin6_flowinfo);
         CMP(xin6->sin6_scope_id, yin6->sin6_scope_id);
     } else if (x->sa_family == AF_UNSPEC) {
+        
         return 1;
     } else {
+        fprintf(stderr, "not ip");
         assert(!"unknown sa_family");
     }
 
@@ -5352,6 +5354,7 @@ int quicly_is_destination(quicly_conn_t *conn, struct sockaddr *dest_addr, struc
                           quicly_decoded_packet_t *decoded)
 {
     if (QUICLY_PACKET_IS_LONG_HEADER(decoded->octets.base[0])) {
+        fprintf(stderr, "is_destination: long header");
         /* long header: validate address, then consult the CID */
         if (compare_socket_address(&conn->super.remote.address.sa, src_addr) != 0)
             return 0;
@@ -5366,12 +5369,14 @@ int quicly_is_destination(quicly_conn_t *conn, struct sockaddr *dest_addr, struc
         }
     }
 
+    fprintf(stderr, "line 5370");
     if (conn->super.ctx->cid_encryptor != NULL) {
         /* Note on multiple CIDs
          * Multiple CIDs issued by this host are always based on the same 3-tuple (master_id, thread_id, node_id)
          * and the only difference is path_id. Therefore comparing the 3-tuple is enough to cover all CIDs issued by
          * this host.
          */
+        fprintf(stderr, "line 5375");
         if (conn->super.local.cid_set.plaintext.master_id == decoded->cid.dest.plaintext.master_id &&
             conn->super.local.cid_set.plaintext.thread_id == decoded->cid.dest.plaintext.thread_id &&
             conn->super.local.cid_set.plaintext.node_id == decoded->cid.dest.plaintext.node_id)
@@ -5379,13 +5384,28 @@ int quicly_is_destination(quicly_conn_t *conn, struct sockaddr *dest_addr, struc
         if (is_stateless_reset(conn, decoded))
             goto Found_StatelessReset;
     } else {
+        fprintf(stderr, "line 5383");
         if (compare_socket_address(&conn->super.remote.address.sa, src_addr) == 0)
-            goto Found;
-        if (conn->super.local.address.sa.sa_family != AF_UNSPEC &&
-            compare_socket_address(&conn->super.local.address.sa, dest_addr) != 0)
-            return 0;
-    }
+        {
+            fprintf(stderr, "line 5388");
+                        goto Found;
 
+        }
+        fprintf(stderr, "line 5391");
+        if (conn->super.local.address.sa.sa_family != AF_UNSPEC)
+            {
+                fprintf(stderr, "line 5393");
+                if(compare_socket_address(&conn->super.local.address.sa, dest_addr) != 0){
+                    fprintf(stderr, "line 5394");
+                }
+                            fprintf(stderr, "line 5388");
+            return 0;
+
+            }
+            // return 0;
+            
+    }
+    fprintf(stderr, "line 5390");
     /* not found */
     return 0;
 
