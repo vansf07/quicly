@@ -531,7 +531,7 @@ static void set_address(quicly_address_t *addr, struct sockaddr *sa)
     //     sll
     default:
         memset(addr, 0xff, sizeof(*addr));
-        assert(!"unexpected address type");
+        //assert(!"unexpected address type");
         break;
     }
 }
@@ -5301,9 +5301,7 @@ static int compare_socket_address(struct sockaddr *x, struct sockaddr *y)
 #define CMP(a, b)                                                                                                                  \
     if (a != b)                                                                                                                    \
     return a < b ? -1 : 1
-
     CMP(x->sa_family, y->sa_family);
-
     if (x->sa_family == AF_INET) {
         struct sockaddr_in *xin = (void *)x, *yin = (void *)y;
         CMP(ntohl(xin->sin_addr.s_addr), ntohl(yin->sin_addr.s_addr));
@@ -5317,6 +5315,7 @@ static int compare_socket_address(struct sockaddr *x, struct sockaddr *y)
         CMP(xin6->sin6_flowinfo, yin6->sin6_flowinfo);
         CMP(xin6->sin6_scope_id, yin6->sin6_scope_id);
     } else if (x->sa_family == AF_UNSPEC) {
+        
         return 1;
     } else {
         assert(!"unknown sa_family");
@@ -5380,12 +5379,18 @@ int quicly_is_destination(quicly_conn_t *conn, struct sockaddr *dest_addr, struc
             goto Found_StatelessReset;
     } else {
         if (compare_socket_address(&conn->super.remote.address.sa, src_addr) == 0)
-            goto Found;
-        if (conn->super.local.address.sa.sa_family != AF_UNSPEC &&
-            compare_socket_address(&conn->super.local.address.sa, dest_addr) != 0)
+        {
+                        goto Found;
+        }
+        if (conn->super.local.address.sa.sa_family != AF_UNSPEC && compare_socket_address(&conn->super.local.address.sa, dest_addr) != 0)
+            {
+            
             return 0;
-    }
 
+            }
+            // return 0;
+            
+    }
     /* not found */
     return 0;
 
