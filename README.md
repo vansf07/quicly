@@ -1,63 +1,82 @@
-quicly [![CI](https://github.com/h2o/quicly/actions/workflows/ci.yml/badge.svg)](https://github.com/h2o/quicly/actions/workflows/ci.yml)
+Quicly with NewIP [![CI](https://github.com/h2o/quicly/actions/workflows/ci.yml/badge.svg)](https://github.com/h2o/quicly/actions/workflows/ci.yml)
 ===
 
 Quicly is a QUIC implementation, written from the ground up to be used within the H2O HTTP server.
 
 The software is licensed under the MIT License.
 
-[Link to setup quic integrated with new-ip.](https://github.com/vansf07/quicly/blob/master/SETUP.md) 
+Machine details
+---
+OS: Ubuntu 21.10
 
-How to build
+Kernel-Version: 5.13.0-23-generic
+
+
+Dependencies:
+---
+```
+sudo apt-get install libssl-dev
+```
+```
+sudo apt-get update && sudo apt-get install build-essential
+```
+```
+sudo apt install cpanminus
+```
+```
+sudo cpan JSON
+```
+```
+sudo apt-get install faketime libscope-guard-perl libtest-tcp-perl
+```
+```
+sudo apt install net-tools
+```
+```
+sudo apt-get install cmake
+```
+
+
+
+Setup:
 ---
 
 ```
-% git submodule update --init --recursive
-% cmake .
-% make
+git clone https://github.com/vansf07/quicly.git
 ```
-
-Building the software requires OpenSSL 1.0.2 or above.
-If you have OpenSSL installed in a non-standard directory, you can pass the location using the `PKG_CONFIG_PATH` environment variable.
-
 ```
-% PKG_CONFIG_PATH=/path/to/openssl/lib/pkgconfig cmake .
+git submodule update --init --recursive
 ```
-
-How to test
+```
+cmake .
+```
+```
+make
+```
+Running the test:
 ---
 
-Install dependencies first:
-
 ```
-# If you use system perl, use --sudo
-% curl -sL https://cpanmin.us | perl - --sudo --self-upgrade
-% cpanm --installdeps --notest --sudo .
-
-# Otherwise, you'd better omit --sudo
-% curl -sL https://cpanmin.us | perl - --self-upgrade
-% cpanm --installdeps --notest .
+make check
 ```
 
-Then, run the tests:
-```
-% make check
-```
 
-Running quicly
+Running a server and client instance:
 ---
 
-A command-line program (named `cli`) that runs either as a server or a client `cli` is provided.
-
-To run the command as a client, specify the peer hostname and port number as the arguments.
-
+Certificate generation
+--
 ```
-% ./cli host port
+openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:2048 -keyout server.key -out server.crt 
+```
+Server:
+--
+ ```
+sudo ./cli -c server.crt -k server.key 127.0.0.1 4433   
+```
+Client:
+--
+```
+sudo ./cli 127.0.0.1 4433  
 ```
 
-To run the command as a server, specify the files that contain the certificate and private key, as well as the hostname and the port number to which the server should bind.
-
-```
-% ./cli -c server.crt -k server.key 0.0.0.0 4433
-```
-
-For more options, please refer to `./cli --help`.
