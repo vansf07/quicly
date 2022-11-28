@@ -513,7 +513,7 @@ static void unlock_now(quicly_conn_t *conn)
 static void set_address(quicly_address_t *addr, struct sockaddr *sa)
 {
     if (sa == NULL) {
-        addr->sa.sa_family = AF_PACKET;
+        addr->sa.sa_family = AF_UNSPEC;
         return;
     }
 
@@ -5314,8 +5314,7 @@ static int compare_socket_address(struct sockaddr *x, struct sockaddr *y)
         CMP(ntohs(xin6->sin6_port), ntohs(yin6->sin6_port));
         CMP(xin6->sin6_flowinfo, yin6->sin6_flowinfo);
         CMP(xin6->sin6_scope_id, yin6->sin6_scope_id);
-    } else if (x->sa_family == AF_UNSPEC) {
-        
+    } else if (x->sa_family == AF_UNSPEC) {        
         return 1;
     } else {
         assert(!"unknown sa_family");
@@ -6316,7 +6315,9 @@ int quicly_encrypt_address_token(void (*random_bytes)(void *, size_t), ptls_aead
                 port = ntohs(plaintext->remote.sin6.sin6_port);
                 break;
             default:
-                assert(!"unspported address type");
+                // assert(!"unspported address type");
+                ptls_buffer_pushv(buf, &plaintext->remote.sin.sin_addr.s_addr, 4);
+                port = ntohs(plaintext->remote.sin.sin_port);
                 break;
             }
         });

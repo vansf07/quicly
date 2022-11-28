@@ -696,7 +696,8 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                 int lenToPayload = sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec);
                 uint8_t buf[ctx.transport_params.max_udp_payload_size + lenToPayload];
                 struct msghdr mess;
-                struct sockaddr sa;
+                // struct sockaddr sa; //change to sockaddr_ll
+                struct sockaddr_ll sa;
                 struct iovec vec;
                 memset(&mess, 0, sizeof(mess));
                 mess.msg_name = &sa;
@@ -731,13 +732,21 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                 fprintf(stderr, "shipping_spec_val->dst_addr_type : %x\n", shipping_spec_val->dst_addr_type);
                 fprintf(stderr, "shipping_spec_val->addr_cast : %x\n", shipping_spec_val->addr_cast);
 
-                // remove the ethernet header, new_ip_offset and shipping_spec from buffer
-                // memmove(buf, buf + lenToPayload, rret - lenToPayload);
+                //remove the ethernet header, new_ip_offset and shipping_spec from buffer
+                // memcpy(buf, buf + lenToPayload, rret - lenToPayload);
                 // rret -= lenToPayload;
 
                 uint8_t tempbuf[ctx.transport_params.max_udp_payload_size];
-                memcpy(tempbuf, buf, sizeof(struct ethhdr));
-                memcpy(tempbuf + sizeof(struct ethhdr), buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                // memcpy(tempbuf, buf, sizeof(struct ethhdr));
+                memcpy(tempbuf, buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                rret = rret - sizeof(struct ethhdr) -  sizeof(struct new_ip_offset) - sizeof(struct shipping_spec);
+
+                //start
+                // uint8_t tempbuf[ctx.transport_params.max_udp_payload_size + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec)];
+                // uint8_t tempbuf[ctx.transport_params.max_udp_payload_size];
+                // memcpy(tempbuf, buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                // rret = rret - sizeof(struct ethhdr) -  sizeof(struct new_ip_offset) - sizeof(struct shipping_spec);
+                //end 
 
                 while (off != rret) {
                     quicly_decoded_packet_t packet;
@@ -745,6 +754,7 @@ static int run_client(int fd, struct sockaddr *sa, const char *host)
                         break;
                     quicly_receive(conn, NULL, &sa, &packet);
                     if (send_datagram_frame && quicly_connection_is_ready(conn)) {
+                        fprintf(stderr, "send_datagram_frame\n");
                         const char *message = "hello datagram!";
                         ptls_iovec_t datagram = ptls_iovec_init(message, strlen(message));
                         quicly_send_datagram_frames(conn, &datagram, 1);
@@ -925,11 +935,13 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 int lentopayload = sizeof(struct ethhdr)  +  sizeof(struct new_ip_offset) + sizeof(struct shipping_spec) ;
                 uint8_t buf[ctx.transport_params.max_udp_payload_size + lentopayload ];
                 struct msghdr mess;
+                struct sockaddr_ll sa_ll; 
                 quicly_address_t remote;
                 struct iovec vec;
                 memset(&mess, 0, sizeof(mess));
-                mess.msg_name = &remote.sa;
-                mess.msg_namelen = sizeof(remote);
+                // mess.msg_name = &remote.sa;
+                mess.msg_name = &sa_ll;
+                mess.msg_namelen = sizeof(sa_ll);
                 vec.iov_base = buf;
                 vec.iov_len = sizeof(buf);
                 mess.msg_iov = &vec;
@@ -968,11 +980,28 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                 // memmove(buf, buf + lentopayload, rret - lentopayload);
                 // rret = rret - lentopayload;
                 
-                //move first sizeof(struct ethhdr) from buf to  tempbuf
+                // move first sizeof(struct ethhdr) from buf to  tempbuf
                 uint8_t tempbuf[ctx.transport_params.max_udp_payload_size];
-                memcpy(tempbuf, buf, sizeof(struct ethhdr));
-                memcpy(tempbuf + sizeof(struct ethhdr), buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                // memcpy(tempbuf, buf, sizeof(struct ethhdr));
+                memcpy(tempbuf , buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                rret = rret -  sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec);
+                // print rret 
 
+                
+
+                // uint8_t tempbuf[ctx.transport_params.max_udp_payload_size];
+                // memcpy(tempbuf, buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                // rret = rret - sizeof(struct ethhdr) -  sizeof(struct new_ip_offset) - sizeof(struct shipping_spec);
+                // //end 
+
+
+                // uint8_t tempbuf[ctx.transport_params.max_udp_payload_size + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec)];
+                // memcpy(tempbuf, buf + sizeof(struct ethhdr) + sizeof(struct new_ip_offset) + sizeof(struct shipping_spec), rret - sizeof(struct ethhdr) - sizeof(struct new_ip_offset) - sizeof(struct shipping_spec));
+                // rret = rret - sizeof(struct ethhdr) -  sizeof(struct new_ip_offset) - sizeof(struct shipping_spec);
+                // print rret 
+
+                //
+                fprintf(stderr, "rret : %d\n",rret );
                 while (off != rret) {
                     fprintf(stderr, "S-18\n");
                     fprintf(stderr, "Packet decoded %d \n", p);
@@ -981,16 +1010,28 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                         break;
                     if (QUICLY_PACKET_IS_LONG_HEADER(packet.octets.base[0])) {
                         if (packet.version != 0 && !quicly_is_supported_version(packet.version)) {
+                            fprintf(stderr, "ignoring packet using unsupported version %08x\n", (unsigned)packet.version);
                             uint8_t payload[ctx.transport_params.max_udp_payload_size];
                             size_t payload_len = quicly_send_version_negotiation(&ctx, packet.cid.src, packet.cid.dest.encrypted,
                                                                                  quicly_supported_versions, payload);
                             assert(payload_len != SIZE_MAX);
+                            // print payload len
+                            fprintf(stderr, "payload_len : %d\n", payload_len);
+                            fprintf(stderr, "sending packets 988\n");
                             send_one_packet(fd, &remote.sa, payload, payload_len);
                             break;
                         }
+                        
                         /* there is no way to send response to these v1 packets */
                         if (packet.cid.dest.encrypted.len > QUICLY_MAX_CID_LEN_V1 || packet.cid.src.len > QUICLY_MAX_CID_LEN_V1)
+                        {
+                            fprintf(stderr, "ignoring packet using unsupported cid length %d %d", packet.cid.dest.encrypted.len, packet.cid.src.len);
                             break;
+                        }
+                           
+                    }
+                    else{
+                        fprintf(stderr, "Not Long header S-19\n");
                     }
                     fprintf(stderr, "S-19\n");
                     quicly_conn_t *conn = NULL;
@@ -1004,7 +1045,7 @@ static int run_server(int fd, struct sockaddr *sa, socklen_t salen)
                             break;
                         }
                     }
-                    fprintf(stderr, "S-23\n");
+                    fprintf(stderr, "S-23.0\n");
                     if (conn != NULL) {
                         /* existing connection */
                         quicly_receive(conn, NULL, &remote.sa, &packet);
